@@ -1,0 +1,17 @@
+{
+  "name": "serverless-example",
+  "description": "This is a example for serverless framework",
+  "license": "UNLICENSED",
+  "scripts": {
+    "lint": "yarn eslint ./api/**.js ./api/model/**.js",
+    "test": "yarn lint"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.389.0",
+    "http-status": "^1.3.1",
+    "uuid": "^3.3.2"
+  },
+  "devDependencies": {
+    "eslint": "^5.15.3"
+  }
+}

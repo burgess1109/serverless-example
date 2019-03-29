@@ -1,0 +1,12 @@
+.idea
+
+# package directories
+node_modules
+api/node_modules
+
+# Serverless directories
+.serverless
+
+# config
+/config.*.yml
+!/config.example.yml

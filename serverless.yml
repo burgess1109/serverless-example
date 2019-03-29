@@ -1,0 +1,224 @@
+# serverless.yml
+
+service: serverless-example
+
+custom:
+  stage: ${opt:stage, 'dev'}
+  conf: ${file(./config.${self:custom.stage}.yml)}
+  messageTable: Message
+
+provider:
+  name: aws
+  runtime: nodejs8.10
+  stage: ${self:custom.stage}
+  region: ap-northeast-1
+  apiKeys:
+    - ${self:custom.conf.API_KEY}
+  environment:
+    APP_API_KEY: ${self:custom.conf.API_KEY}
+    STAGE: ${self:custom.stage}
+    MESSAGE_TABLE: {Ref: MessageTable}
+    MESSAGE_TABLE_INDEX: messageId-createdAt-index
+  iamRoleStatements:
+  - Effect: "Allow"
+    Action:
+    - "dynamodb:*Item"
+    - "dynamodb:Query"
+    - "dynamodb:Scan"
+    Resource:
+    - Fn::GetAtt: [MessageTable, Arn]
+    - Fn::Join:
+        - "/"
+        - - Fn::GetAtt: [ MessageTable, Arn]
+          - "index"
+          - "messageId-createdAt-index"
+
+functions:
+  allMessage:
+    handler: api/message.list
+    memorySize: 128
+    description: Get all messages
+    events:
+    - http:
+        method: GET
+        path: api/messages
+        cors: ${self:custom.conf.CORS}
+        private: true
+    package:
+      include:
+      - api/**
+      - "!api/test/**"
+  gerMessage:
+    handler: api/message.get
+    memorySize: 128
+    description: Get a message
+    events:
+    - http:
+        method: GET
+        path: api/message/{id}
+        cors: ${self:custom.conf.CORS}
+        private: true
+    package:
+      include:
+      - api/**
+      - "!api/test/**"
+  createMessage:
+    handler: api/message.create
+    memorySize: 128
+    description: Create a message
+    events:
+    - http:
+        method: POST
+        path: api/message
+        cors: ${self:custom.conf.CORS}
+        private: true
+    package:
+      include:
+      - api/**
+      - "!api/test/**"
+  putMessage:
+    handler: api/message.put
+    memorySize: 128
+    description: Put a message
+    events:
+    - http:
+        method: PUT
+        path: api/message/{id}
+        cors: ${self:custom.conf.CORS}
+        private: true
+    package:
+      include:
+      - api/**
+      - "!api/test/**"
+  deleteMessage:
+    handler: api/message.remove
+    memorySize: 128
+    description: Delete a message
+    events:
+    - http:
+        method: DELETE
+        path: api/message/{id}
+        cors: ${self:custom.conf.CORS}
+        private: true
+    package:
+      include:
+      - api/**
+      - "!api/test/**"
+
+resources:
+  Resources:
+    MessageTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+        - AttributeName: messageId
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: N
+        KeySchema:
+        - AttributeName: messageId
+          KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        GlobalSecondaryIndexes:
+        - IndexName: messageId-createdAt-index
+          KeySchema:
+          - AttributeName: messageId
+            KeyType: HASH
+          - AttributeName: createdAt
+            KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+        TableName:
+          Fn::Join:
+          - "-"
+          - - ${self:custom.messageTable}
+            - ${self:custom.stage}
+    MessageReadScalingPolicy:
+      Type: AWS::ApplicationAutoScaling::ScalingPolicy
+      Properties:
+        PolicyName: ReadAutoScalingPolicy
+        PolicyType: TargetTrackingScaling
+        ScalingTargetId:
+          Ref: MessageReadCapacityScalableTarget
+        TargetTrackingScalingPolicyConfiguration:
+          TargetValue: 80.0
+          ScaleInCooldown: 60
+          ScaleOutCooldown: 60
+          PredefinedMetricSpecification:
+            PredefinedMetricType: DynamoDBReadCapacityUtilization
+    MessageReadCapacityScalableTarget:
+      Type: AWS::ApplicationAutoScaling::ScalableTarget
+      Properties:
+        MaxCapacity: 20
+        MinCapacity: 1
+        ResourceId:
+          Fn::Join:
+          - /
+          - - table
+            - Ref: MessageTable
+        RoleARN:
+          Fn::GetAtt: [ ScalingRole, Arn ]
+        ScalableDimension: dynamodb:table:ReadCapacityUnits
+        ServiceNamespace: dynamodb
+    MessageWriteScalingPolicy:
+      Type: "AWS::ApplicationAutoScaling::ScalingPolicy"
+      Properties:
+        PolicyName: WriteAutoScalingPolicy
+        PolicyType: TargetTrackingScaling
+        ScalingTargetId:
+          Ref: MessageWriteCapacityScalableTarget
+        TargetTrackingScalingPolicyConfiguration:
+          TargetValue: 80.0
+          ScaleInCooldown: 60
+          ScaleOutCooldown: 60
+          PredefinedMetricSpecification:
+            PredefinedMetricType: DynamoDBWriteCapacityUtilization
+    MessageWriteCapacityScalableTarget:
+      Type: AWS::ApplicationAutoScaling::ScalableTarget
+      Properties:
+        MaxCapacity: 20
+        MinCapacity: 1
+        ResourceId:
+          Fn::Join:
+          - /
+          - - table
+            - Ref: MessageTable
+        RoleARN:
+          Fn::GetAtt: [ ScalingRole, Arn ]
+        ScalableDimension: dynamodb:table:WriteCapacityUnits
+        ServiceNamespace: dynamodb
+    ScalingRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: application-autoscaling.amazonaws.com
+            Action: "sts:AssumeRole"
+        Path: "/"
+        Policies:
+        - PolicyName: "root"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+            - Effect: "Allow"
+              Action:
+              - "dynamodb:DescribeTable"
+              - "dynamodb:UpdateTable"
+              - "cloudwatch:PutMetricAlarm"
+              - "cloudwatch:DescribeAlarms"
+              - "cloudwatch:GetMetricStatistics"
+              - "cloudwatch:SetAlarmState"
+              - "cloudwatch:DeleteAlarms"
+              Resource: "*"
+package:
+  individually: true
+  exclude:
+  - ./**
