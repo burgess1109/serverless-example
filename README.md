@@ -21,7 +21,7 @@ git clone https://github.com/burgess1109/serverless-example.git
 
 - 安裝 lib
 ```
-yarn update
+yarn install
 ```
 
 - 修改 config
@@ -48,7 +48,7 @@ yarn sls deploy --stage {YourStageName} --aws-profile {YourProfile}
 部署成功會出現 Service Information
 
 
-![圖示說明](https://github.com/burgess1109/serverless-example/blob/master/example1.png) 
+![圖示說明](https://github.com/burgess1109/serverless-example/blob/master/example1.png)
 
 上圖顯示部署的 region, CloudFormation stack name, API Gateway api key & end points 以及 Lambda function name 等訊息。
 實際到 AWS 後台，可看到 serverless framework 部署在 S3, CloudFormation, API Gateway, Lambda, DynamoDB‎ 的服務，這時只要 call endpoints 就能執行 CRUD，因為有設定 api key，所以 要在 header 加入 `x-api-key`, 值為 ServerlessFrameworkExample 產生的內容。
